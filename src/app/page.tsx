@@ -32,7 +32,7 @@ export default function Home() {
             >
               Learning
             </a>{" "}
-            center.
+            center. Я изучаю Next.js.
           </p>
         </div>
         <div className={styles.ctas}>
