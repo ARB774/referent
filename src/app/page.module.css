@@ -61,6 +61,11 @@
   color: var(--text-primary);
 }
 
+.highlight {
+  color: #d00000;
+  font-weight: 700;
+}
+
 .ctas {
   display: flex;
   flex-direction: row;

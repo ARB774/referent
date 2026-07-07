@@ -32,7 +32,8 @@ export default function Home() {
             >
               Learning
             </a>{" "}
-            center. Я изучаю Next.js неделю.
+            center.{" "}
+            <span className={styles.highlight}>Я изучаю Next.js неделю.</span>
           </p>
         </div>
         <div className={styles.ctas}>
