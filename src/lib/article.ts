@@ -1,6 +1,3 @@
-import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
-
 import type { ArticleContent } from "./types";
 
 const USER_AGENT =
@@ -33,6 +30,20 @@ function assertAllowedUrl(urlString: string) {
 
 export async function fetchArticle(urlString: string): Promise<ArticleContent> {
   const url = assertAllowedUrl(urlString);
+
+  const { JSDOM } = await import("jsdom");
+  const readabilityModule = await import("@mozilla/readability");
+  const Readability =
+    (readabilityModule as { Readability?: typeof import("@mozilla/readability").Readability })
+      .Readability ??
+    (readabilityModule as { default?: { Readability?: typeof import("@mozilla/readability").Readability } })
+      .default?.Readability;
+
+  if (!Readability) {
+    throw new Error(
+      "Не удалось инициализировать парсер статьи (Readability). Попробуйте ещё раз.",
+    );
+  }
 
   const response = await fetch(url, {
     headers: {
@@ -67,7 +78,9 @@ export async function fetchArticle(urlString: string): Promise<ArticleContent> {
   }
 
   return {
-    title: normalizeWhitespace(parsed.title || dom.window.document.title || url.hostname),
+    title: normalizeWhitespace(
+      parsed.title || dom.window.document.title || url.hostname,
+    ),
     text,
     excerpt: extractExcerpt(text),
     byline: parsed.byline ? normalizeWhitespace(parsed.byline) : undefined,
