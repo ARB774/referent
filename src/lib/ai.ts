@@ -6,6 +6,9 @@ const OPENAI_BASE_URL =
 
 function buildPrompt(action: ActionKey, article: ArticleContent) {
   const commonContext = `You are an assistant that analyzes English-language articles and writes answers in Russian.
+Return only Russian text.
+Do not leave English words, headings, or bullet points in the final answer unless they are part of a URL or an unavoidable proper name.
+If you mention the article title, translate or paraphrase it in Russian.
 
 Article title: ${article.title}
 Source URL: ${article.url}
@@ -54,31 +57,50 @@ function sentenceSplit(text: string) {
 
 function localFallback(action: ActionKey, article: ArticleContent) {
   const sentences = sentenceSplit(article.text);
-  const lead = sentences.slice(0, 6);
-  const bullets = lead.slice(0, 5).map((sentence) => `- ${sentence}`);
+  const approximateParagraphs = Math.max(
+    1,
+    article.text.split(/\n\s*\n/).filter(Boolean).length,
+  );
+  const sentenceCount = sentences.length;
+  const siteName = article.siteName || "неизвестного источника";
+  const author = article.byline || "автор не указан";
+  const depth =
+    article.text.length > 12000
+      ? "подробно"
+      : article.text.length > 6000
+        ? "достаточно развёрнуто"
+        : "коротко";
 
   switch (action) {
     case "summary":
       return [
-        `Статья «${article.title}» посвящена теме ${article.siteName ?? "источника"} и раскрывает основной контекст материала через ключевые аргументы автора.`,
-        `Ниже приведён локальный fallback-результат без AI. Для полноценной AI-генерации добавьте OPENAI_API_KEY в переменные окружения.`,
+        `Материал с сайта ${siteName} успешно загружен и подготовлен к анализу. Текст статьи достаточно большой, поэтому приложение смогло извлечь содержимое и определить основной источник.`,
+        `Сейчас ответ сформирован в резервном режиме без AI, поэтому вместо полноценного пересказа показывается краткая русскоязычная сводка по структуре материала.`,
         "",
-        ...bullets.slice(0, 3),
+        `- Автор: ${author}.`,
+        `- Текст раскрывает тему ${depth} и содержит примерно ${sentenceCount} смысловых предложений.`,
+        `- В статье найдено около ${approximateParagraphs} крупных смысловых блоков, пригодных для дальнейшего пересказа на русском языке.`,
       ].join("\n");
     case "theses":
       return [
-        `Ключевые тезисы статьи «${article.title}»:`,
+        "Ключевые тезисы материала в резервном режиме:",
         "",
-        ...bullets,
+        `- Источник статьи: ${siteName}.`,
+        `- Автор материала: ${author}.`,
+        `- Текст успешно извлечён и готов для AI-обработки.`,
+        `- Объём статьи позволяет получить краткий пересказ, тезисы и адаптацию под Telegram.`,
+        `- Для содержательных тезисов на русском языке лучше использовать режим с подключённым AI.`,
       ].join("\n");
     case "telegram":
       return [
-        `Нашёл интересный материал: «${article.title}».`,
+        "Нашёл интересный англоязычный материал и загрузил его в приложение.",
         "",
-        "Главное из статьи:",
-        ...bullets.slice(0, 4),
+        `Источник: ${siteName}.`,
+        `Автор: ${author}.`,
+        "Сейчас доступен резервный русскоязычный шаблон без AI-пересказа.",
+        "После подключения AI приложение сможет превратить статью в полноценный пост для Telegram с кратким хуком, тезисами и выводом.",
         "",
-        "Если нужно, могу отдельно разобрать статью подробнее и превратить её в готовый контент.",
+        "Готов продолжить обработку и выдать итоговый пост после AI-анализа.",
       ].join("\n");
   }
 }
@@ -103,7 +125,7 @@ async function openAiCompletion(action: ActionKey, article: ArticleContent) {
         {
           role: "system",
           content:
-            "You analyze articles and write polished Russian-language answers.",
+            "You analyze articles and write polished Russian-language answers only. All output must be in Russian.",
         },
         {
           role: "user",

@@ -55,10 +55,11 @@ export default function Home() {
       title: result.title,
       body: result.result,
       points: [
-        `Источник: ${result.article.title}`,
-        `Сайт: ${result.article.siteName ?? "не указан"}`,
+        `Источник: ${result.article.siteName ?? "источник не указан"}`,
+        `Адрес статьи: ${result.article.url}`,
+        `Автор: ${result.article.byline ?? "не указан"}`,
         `Режим генерации: ${
-          result.provider === "openai" ? "AI (OpenAI)" : "Локальный fallback"
+          result.provider === "openai" ? "AI (OpenAI)" : "Резервный локальный режим"
         }`,
       ],
     };
@@ -303,16 +304,6 @@ export default function Home() {
               ))}
             </ul>
 
-            {result?.article.excerpt ? (
-              <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                  Фрагмент статьи
-                </p>
-                <p className="mt-3 text-sm leading-6 text-slate-300">
-                  {result.article.excerpt}
-                </p>
-              </div>
-            ) : null}
           </div>
         </section>
       </div>
