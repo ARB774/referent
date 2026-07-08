@@ -86,9 +86,18 @@ export default function Home() {
         }),
       });
 
-      const data = (await response.json()) as AnalysisResponse & {
-        error?: string;
-      };
+      const contentType = response.headers.get("content-type") ?? "";
+      const isJson = contentType.includes("application/json");
+
+      if (!isJson) {
+        const text = await response.text();
+        const head = text.slice(0, 120).replace(/\s+/g, " ").trim();
+        throw new Error(
+          `Сервер вернул не JSON (HTTP ${response.status}). Ответ начинается с: ${head}`,
+        );
+      }
+
+      const data = (await response.json()) as AnalysisResponse & { error?: string };
 
       if (!response.ok) {
         throw new Error(data.error || "Не удалось получить результат анализа.");

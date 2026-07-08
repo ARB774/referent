@@ -4,6 +4,9 @@ import { fetchArticle } from "@/lib/article";
 import { generateAnalysis } from "@/lib/ai";
 import type { ActionKey, AnalysisResponse } from "@/lib/types";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const TITLES: Record<ActionKey, string> = {
   summary: "О чем статья?",
   theses: "Тезисы",
@@ -61,6 +64,17 @@ export async function POST(request: Request) {
         ? error.message
         : "Не удалось обработать статью. Попробуйте ещё раз.";
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status =
+      message.includes("Укажите") ||
+      message.includes("Поддерживаются") ||
+      message.includes("Не удалось загрузить статью") ||
+      message.includes("Не удалось извлечь текст") ||
+      message.includes("слишком мало") ||
+      message.includes("Unexpected end of JSON") ||
+      message.includes("Expected property name")
+        ? 400
+        : 500;
+
+    return NextResponse.json({ error: message }, { status });
   }
 }
