@@ -12,6 +12,10 @@ function extractExcerpt(text: string) {
   return excerpt.length < text.length ? `${excerpt}...` : excerpt;
 }
 
+function safeHostname(value: string) {
+  return value.replace(/^www\./, "");
+}
+
 function assertAllowedUrl(urlString: string) {
   let parsed: URL;
 
@@ -31,20 +35,6 @@ function assertAllowedUrl(urlString: string) {
 export async function fetchArticle(urlString: string): Promise<ArticleContent> {
   const url = assertAllowedUrl(urlString);
 
-  const { JSDOM } = await import("jsdom");
-  const readabilityModule = await import("@mozilla/readability");
-  const Readability =
-    (readabilityModule as { Readability?: typeof import("@mozilla/readability").Readability })
-      .Readability ??
-    (readabilityModule as { default?: { Readability?: typeof import("@mozilla/readability").Readability } })
-      .default?.Readability;
-
-  if (!Readability) {
-    throw new Error(
-      "Не удалось инициализировать парсер статьи (Readability). Попробуйте ещё раз.",
-    );
-  }
-
   const response = await fetch(url, {
     headers: {
       "user-agent": USER_AGENT,
@@ -59,17 +49,44 @@ export async function fetchArticle(urlString: string): Promise<ArticleContent> {
   }
 
   const html = await response.text();
-  const dom = new JSDOM(html, { url: url.toString() });
-  const reader = new Readability(dom.window.document);
-  const parsed = reader.parse();
+  const cheerioModule = await import("cheerio");
+  const $ = cheerioModule.load(html);
 
-  if (!parsed?.textContent) {
-    throw new Error(
-      "Не удалось извлечь текст статьи. Попробуйте другую страницу.",
-    );
-  }
+  const title =
+    normalizeWhitespace(
+      $('meta[property="og:title"]').attr("content") ||
+        $('meta[name="twitter:title"]').attr("content") ||
+        $("title").text() ||
+        url.hostname,
+    ) || url.hostname;
 
-  const text = normalizeWhitespace(parsed.textContent);
+  const siteName = normalizeWhitespace(
+    $('meta[property="og:site_name"]').attr("content") || safeHostname(url.hostname),
+  );
+
+  const byline = normalizeWhitespace(
+    $('meta[name="author"]').attr("content") ||
+      $('[itemprop="author"]').first().text() ||
+      "",
+  );
+
+  const metaDescription = normalizeWhitespace(
+    $('meta[property="og:description"]').attr("content") ||
+      $('meta[name="description"]').attr("content") ||
+      "",
+  );
+
+  $("script, style, noscript, svg, iframe").remove();
+  $("header, footer, nav, aside").remove();
+
+  const candidate =
+    $("article").first().length
+      ? $("article").first()
+      : $("main").first().length
+        ? $("main").first()
+        : $("body");
+
+  const text = normalizeWhitespace(candidate.text());
 
   if (text.length < 400) {
     throw new Error(
@@ -78,15 +95,11 @@ export async function fetchArticle(urlString: string): Promise<ArticleContent> {
   }
 
   return {
-    title: normalizeWhitespace(
-      parsed.title || dom.window.document.title || url.hostname,
-    ),
+    title,
     text,
-    excerpt: extractExcerpt(text),
-    byline: parsed.byline ? normalizeWhitespace(parsed.byline) : undefined,
-    siteName: parsed.siteName
-      ? normalizeWhitespace(parsed.siteName)
-      : url.hostname.replace(/^www\./, ""),
+    excerpt: metaDescription || extractExcerpt(text),
+    byline: byline || undefined,
+    siteName: siteName || safeHostname(url.hostname),
     url: url.toString(),
   };
 }
