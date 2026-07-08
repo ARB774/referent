@@ -1,0 +1,41 @@
+$colors: (
+    "light-color": #fff,
+    "light-dark-color": #f3f3f3,
+    "dark-color": #343b4c,
+    "dark-light-color": #444f6a,
+    "primary-color": #ff6332,
+    "primary-hover-color": #f25321,
+    "dark-grey-color": #5b5b5b,
+    "black-color": #000,
+);
+$sizes: (
+    "primary-size": 18px,
+    "middle-size": 16px,
+    "small-size": 14px,
+    "title-size": 54px,
+    "titleSecond-size": 42px,
+);
+
+$containers: (
+    "container-desktop-size": 1292px,
+    "container-laptop-size": 960px,
+    "container-tablet-size": 736px,
+    "container-mobileFirst-size": 448px,
+    "container-mobileSecond-size": 374px,
+    "container-padding": 16px,
+);
+
+:root {
+    /* color variables */
+    @each $key, $value in $colors {
+        --#{$key}: #{$value};
+    }
+    /* font size variables */
+    @each $key, $value in $sizes {
+        --#{$key}: #{$value};
+    }
+    /* container size variables */
+    @each $key, $value in $containers {
+        --#{$key}: #{$value};
+    }
+}
