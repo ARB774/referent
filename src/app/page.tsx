@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-type ActionKey = "summary" | "theses" | "telegram";
+import type { ActionKey, AnalysisResponse } from "@/lib/types";
 
 const actions: {
   key: ActionKey;
@@ -29,7 +29,9 @@ const actions: {
 export default function Home() {
   const [url, setUrl] = useState("");
   const [selectedAction, setSelectedAction] = useState<ActionKey>("summary");
-  const [hasGenerated, setHasGenerated] = useState(false);
+  const [result, setResult] = useState<AnalysisResponse | null>(null);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const selectedActionData = useMemo(
     () => actions.find((action) => action.key === selectedAction) ?? actions[0],
@@ -37,7 +39,7 @@ export default function Home() {
   );
 
   const resultContent = useMemo(() => {
-    if (!hasGenerated) {
+    if (!result) {
       return {
         title: "Результат появится здесь",
         body: "Введите URL англоязычной статьи и выберите нужный сценарий. После подключения AI в этом блоке будет появляться сгенерированный ответ.",
@@ -49,41 +51,61 @@ export default function Home() {
       };
     }
 
-    const source = url.trim() || "указанной статьи";
+    return {
+      title: result.title,
+      body: result.result,
+      points: [
+        `Источник: ${result.article.title}`,
+        `Сайт: ${result.article.siteName ?? "не указан"}`,
+        `Режим генерации: ${
+          result.provider === "openai" ? "AI (OpenAI)" : "Локальный fallback"
+        }`,
+      ],
+    };
+  }, [result]);
 
-    switch (selectedAction) {
-      case "summary":
-        return {
-          title: "О чем статья?",
-          body: `Здесь будет краткое и понятное объяснение содержания ${source}: основная тема, контекст и главный вывод.`,
-          points: [
-            "Определение центральной идеи материала.",
-            "Краткий пересказ без лишних деталей.",
-            "Выделение пользы для читателя.",
-          ],
-        };
-      case "theses":
-        return {
-          title: "Тезисы",
-          body: `Здесь будет структурированный набор тезисов по ${source}, чтобы быстро получить основные мысли статьи.`,
-          points: [
-            "Ключевые аргументы автора.",
-            "Главные факты и выводы.",
-            "Список тезисов для дальнейшей работы.",
-          ],
-        };
-      case "telegram":
-        return {
-          title: "Пост для Telegram",
-          body: `Здесь будет черновик поста для Telegram на основе ${source} с адаптацией под короткий и вовлекающий формат.`,
-          points: [
-            "Яркий первый абзац или хук.",
-            "Сжатая подача сути статьи.",
-            "Готовый текст для публикации или доработки.",
-          ],
-        };
+  async function runAnalysis(action: ActionKey) {
+    if (!url.trim()) {
+      setError("Сначала вставьте URL статьи.");
+      return;
     }
-  }, [hasGenerated, selectedAction, url]);
+
+    setSelectedAction(action);
+    setError("");
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url,
+          action,
+        }),
+      });
+
+      const data = (await response.json()) as AnalysisResponse & {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Не удалось получить результат анализа.");
+      }
+
+      setResult(data);
+    } catch (requestError) {
+      setResult(null);
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Не удалось обработать статью.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -140,8 +162,9 @@ export default function Home() {
                   Параметры запроса
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Ниже собран базовый интерфейс без backend и AI-интеграции,
-                  готовый для подключения логики.
+                  Введите URL статьи и выберите сценарий. Приложение загрузит
+                  страницу, извлечёт текст и попробует сгенерировать ответ через
+                  AI.
                 </p>
               </div>
 
@@ -182,15 +205,13 @@ export default function Home() {
                         <button
                           key={action.key}
                           type="button"
-                          onClick={() => {
-                            setSelectedAction(action.key);
-                            setHasGenerated(true);
-                          }}
+                          onClick={() => runAnalysis(action.key)}
+                          disabled={isLoading}
                           className={`rounded-2xl border px-4 py-4 text-left transition ${
                             isActive
                               ? "border-cyan-400/70 bg-cyan-400/10 shadow-lg shadow-cyan-950/30"
                               : "border-white/10 bg-slate-950/70 hover:border-slate-600 hover:bg-slate-900"
-                          }`}
+                          } ${isLoading ? "cursor-not-allowed opacity-70" : ""}`}
                         >
                           <span className="block text-sm font-semibold text-white">
                             {action.label}
@@ -203,6 +224,12 @@ export default function Home() {
                     })}
                   </div>
                 </div>
+
+                {error ? (
+                  <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm leading-6 text-rose-100">
+                    {error}
+                  </div>
+                ) : null}
               </form>
             </section>
           </div>
@@ -227,7 +254,7 @@ export default function Home() {
                 Источник
               </p>
               <p className="mt-2 break-all text-sm leading-6 text-slate-300">
-                {url.trim() || "URL пока не указан"}
+                {result?.article.url || url.trim() || "URL пока не указан"}
               </p>
             </div>
           </div>
@@ -243,13 +270,17 @@ export default function Home() {
                 </h2>
               </div>
               <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
-                {hasGenerated ? "Предпросмотр ответа" : "Ожидание генерации"}
+                {isLoading
+                  ? "Генерация..."
+                  : result
+                    ? "Ответ получен"
+                    : "Ожидание генерации"}
               </div>
             </div>
 
-            <p className="mt-5 max-w-3xl text-sm leading-7 text-slate-300 md:text-base">
+            <div className="mt-5 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-slate-300 md:text-base">
               {resultContent.body}
-            </p>
+            </div>
 
             <ul className="mt-6 space-y-3">
               {resultContent.points.map((point) => (
@@ -262,6 +293,17 @@ export default function Home() {
                 </li>
               ))}
             </ul>
+
+            {result?.article.excerpt ? (
+              <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  Фрагмент статьи
+                </p>
+                <p className="mt-3 text-sm leading-6 text-slate-300">
+                  {result.article.excerpt}
+                </p>
+              </div>
+            ) : null}
           </div>
         </section>
       </div>
