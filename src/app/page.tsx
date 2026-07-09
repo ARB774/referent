@@ -2,10 +2,33 @@
 
 import { useMemo, useState } from "react";
 
-import type { AnalysisResponse } from "@/lib/types";
+import type { ActionKey, AnalysisResponse } from "@/lib/types";
+
+const actions: {
+  key: ActionKey;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: "summary",
+    label: "Суть",
+    description: "Кратко объяснить, о чем статья и в чем ее основная мысль.",
+  },
+  {
+    key: "theses",
+    label: "Тезисы",
+    description: "Собрать главные тезисы, выводы и ключевые идеи материала.",
+  },
+  {
+    key: "telegram",
+    label: "Пост",
+    description: "Подготовить короткий пост для Telegram по содержанию статьи.",
+  },
+];
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [selectedAction, setSelectedAction] = useState<ActionKey>("summary");
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -14,29 +37,23 @@ export default function Home() {
   const resultContent = useMemo(() => {
     if (!result) {
       return {
-        body: `{\n  "date": null,\n  "title": "",\n  "content": ""\n}`,
+        body: "После запуска анализа здесь появится готовый текст по выбранному сценарию.",
         points: [
-          "Здесь появится JSON с датой, заголовком и основным контентом статьи.",
-          "Ниже будет показан адрес страницы и длина извлечённого контента.",
+          "Будет показан ответ по одному из сценариев: Суть, Тезисы или Пост.",
+          "Ниже отобразятся заголовок статьи, дата, адрес и режим генерации.",
         ],
       };
     }
 
     return {
-      body: JSON.stringify(
-        {
-          date: result.date,
-          title: result.title,
-          content: result.content,
-        },
-        null,
-        2,
-      ),
+      body: result.result,
       points: [
-        `Дата публикации: ${result.date ?? "не найдена"}`,
-        `Заголовок: ${result.title}`,
-        `Адрес статьи: ${result.url}`,
-        `Длина контента: ${result.content.length} символов`,
+        `Дата публикации: ${result.article.date ?? "не найдена"}`,
+        `Заголовок: ${result.article.title}`,
+        `Адрес статьи: ${result.article.url}`,
+        `Режим генерации: ${
+          result.provider === "openai" ? "AI (OpenAI)" : "Резервный локальный режим"
+        }`,
       ],
     };
   }, [result]);
@@ -47,25 +64,23 @@ export default function Home() {
     }
 
     return [
-      JSON.stringify(
-        {
-          date: result.date,
-          title: result.title,
-          content: result.content,
-        },
-        null,
-        2,
-      ),
-      `Адрес статьи: ${result.url}`,
+      result.result,
+      `Дата публикации: ${result.article.date ?? "не найдена"}`,
+      `Заголовок: ${result.article.title}`,
+      `Адрес статьи: ${result.article.url}`,
+      `Режим генерации: ${
+        result.provider === "openai" ? "AI (OpenAI)" : "Резервный локальный режим"
+      }`,
     ].join("\n\n");
   }, [result]);
 
-  async function runAnalysis() {
+  async function runAnalysis(action: ActionKey) {
     if (!url.trim()) {
       setError("Сначала вставьте URL статьи.");
       return;
     }
 
+    setSelectedAction(action);
     setError("");
     setCopied(false);
     setIsLoading(true);
@@ -78,6 +93,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           url,
+          action,
         }),
       });
 
@@ -142,16 +158,16 @@ export default function Home() {
     <main className="app-page">
       <div className="app-shell">
         <section className="app-card app-card--accent">
-          <p className="app-eyebrow">Referent Parser</p>
-          <h1 className="app-title">Извлечение JSON из HTML-статей</h1>
+          <p className="app-eyebrow">Referent AI</p>
+          <h1 className="app-title">Разбор англоязычных статей с помощью OpenAI</h1>
         </section>
 
         <section className="app-card">
           <h2 className="app-sectionTitle">Описание сервиса</h2>
           <p className="app-text">
-            Сервис загружает HTML по URL статьи, ищет дату публикации, заголовок
-            и основной контент страницы, а затем возвращает JSON вида
-            <code>{` { date, title, content } `}</code>.
+            Сервис загружает статью по URL, извлекает заголовок, дату и основной
+            контент, а затем передаёт материал в OpenAI для подготовки ответа на
+            русском языке по выбранному сценарию.
           </p>
         </section>
 
@@ -159,8 +175,8 @@ export default function Home() {
           <h2 className="app-sectionTitle">Инструкция</h2>
           <ol className="app-instructionList">
             <li>Вставьте URL англоязычной статьи.</li>
-            <li>Нажмите кнопку запуска HTML-парсинга.</li>
-            <li>Получите JSON с полями date, title и content в блоке ниже.</li>
+            <li>Выберите один из трёх сценариев: Суть, Тезисы или Пост.</li>
+            <li>Получите результат обработки статьи в блоке ниже.</li>
           </ol>
         </section>
 
@@ -182,15 +198,22 @@ export default function Home() {
               className="app-input"
             />
             <div className="app-actions">
-              <button
-                type="button"
-                title="Загрузить HTML страницы и извлечь дату, заголовок и основной контент."
-                onClick={runAnalysis}
-                disabled={isLoading}
-                className="app-button app-button--active"
-              >
-                Извлечь JSON
-              </button>
+              {actions.map((action) => {
+                const isActive = action.key === selectedAction;
+
+                return (
+                  <button
+                    key={action.key}
+                    type="button"
+                    title={action.description}
+                    onClick={() => runAnalysis(action.key)}
+                    disabled={isLoading}
+                    className={`app-button ${isActive ? "app-button--active" : ""}`}
+                  >
+                    {action.label}
+                  </button>
+                );
+              })}
             </div>
 
             {error ? <div className="app-error">{error}</div> : null}
@@ -203,7 +226,7 @@ export default function Home() {
               <h2 className="app-sectionTitle">Результаты</h2>
               <p className="app-status">
                 {isLoading
-                  ? "Идёт парсинг HTML и извлечение JSON..."
+                  ? "Идёт обработка статьи..."
                   : result
                     ? "Результат сформирован."
                     : "Ожидается запуск анализа."}
@@ -230,7 +253,7 @@ export default function Home() {
             ) : null}
           </div>
 
-          <pre className="app-resultBody">{resultContent.body}</pre>
+          <div className="app-resultBody">{resultContent.body}</div>
 
           <ul className="app-metaList">
             {resultContent.points.map((point) => (

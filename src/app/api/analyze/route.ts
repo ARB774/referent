@@ -1,18 +1,31 @@
 import { NextResponse } from "next/server";
 
+import { generateAnalysis } from "@/lib/ai";
 import { fetchArticle } from "@/lib/article";
-import type { AnalysisResponse } from "@/lib/types";
+import type { ActionKey, AnalysisResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const TITLES: Record<ActionKey, string> = {
+  summary: "Суть",
+  theses: "Тезисы",
+  telegram: "Пост",
+};
+
+function isActionKey(value: string): value is ActionKey {
+  return value === "summary" || value === "theses" || value === "telegram";
+}
 
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
       url?: string;
+      action?: string;
     };
 
     const url = body.url?.trim();
+    const action = body.action?.trim();
 
     if (!url) {
       return NextResponse.json(
@@ -21,8 +34,29 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!action || !isActionKey(action)) {
+      return NextResponse.json(
+        { error: "Укажите корректное действие для анализа." },
+        { status: 400 },
+      );
+    }
+
     const article = await fetchArticle(url);
-    return NextResponse.json(article satisfies AnalysisResponse, { status: 200 });
+    const analysis = await generateAnalysis(action, article);
+
+    const response: AnalysisResponse = {
+      title: TITLES[action],
+      result: analysis.result,
+      provider: analysis.provider,
+      article: {
+        date: article.date,
+        title: article.title,
+        excerpt: article.excerpt,
+        url: article.url,
+      },
+    };
+
+    return NextResponse.json(response, { status: 200 });
   } catch (error) {
     const message =
       error instanceof Error

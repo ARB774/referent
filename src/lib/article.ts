@@ -1,6 +1,6 @@
 import type { CheerioAPI } from "cheerio";
 
-import type { ParsedArticle } from "./types";
+import type { ArticleContent } from "./types";
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; ReferentAI/1.0; +https://referent-zeta.vercel.app)";
@@ -11,6 +11,11 @@ function normalizeWhitespace(value: string) {
 
 function safeHostname(value: string) {
   return value.replace(/^www\./, "");
+}
+
+function extractExcerpt(text: string) {
+  const excerpt = normalizeWhitespace(text).slice(0, 280);
+  return excerpt.length < text.length ? `${excerpt}...` : excerpt;
 }
 
 // #region debug-point A:reporting
@@ -155,7 +160,7 @@ function assertAllowedUrl(urlString: string) {
   return parsed;
 }
 
-export async function fetchArticle(urlString: string): Promise<ParsedArticle> {
+export async function fetchArticle(urlString: string): Promise<ArticleContent> {
   const url = assertAllowedUrl(urlString);
 
   const response = await fetch(url, {
@@ -206,6 +211,7 @@ export async function fetchArticle(urlString: string): Promise<ParsedArticle> {
     date,
     title,
     content,
+    excerpt: extractExcerpt(content),
     url: url.toString(),
   };
 }
