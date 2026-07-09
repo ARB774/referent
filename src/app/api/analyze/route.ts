@@ -73,8 +73,6 @@ export async function POST(request: Request) {
       message.includes("Unexpected end of JSON") ||
       message.includes("Expected property name")
         ? 400
-        : message.includes("TraeAI")
-          ? 503
         : 500;
 
     return NextResponse.json({ error: message }, { status });

@@ -12,7 +12,7 @@ export type ArticleContent = {
 export type AnalysisResponse = {
   title: string;
   result: string;
-  provider: "traeai" | "local-fallback";
+  provider: "openai" | "local-fallback";
   article: {
     title: string;
     excerpt: string;

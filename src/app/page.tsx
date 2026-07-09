@@ -52,7 +52,7 @@ export default function Home() {
         `Адрес статьи: ${result.article.url}`,
         `Автор: ${result.article.byline ?? "не указан"}`,
         `Режим генерации: ${
-          result.provider === "traeai" ? "AI (TraeAI)" : "Резервный локальный режим"
+          result.provider === "openai" ? "AI (OpenAI)" : "Резервный локальный режим"
         }`,
       ],
     };
@@ -69,7 +69,7 @@ export default function Home() {
       `Адрес статьи: ${result.article.url}`,
       `Автор: ${result.article.byline ?? "не указан"}`,
       `Режим генерации: ${
-        result.provider === "traeai" ? "AI (TraeAI)" : "Резервный локальный режим"
+        result.provider === "openai" ? "AI (OpenAI)" : "Резервный локальный режим"
       }`,
     ].join("\n\n");
   }, [result]);
