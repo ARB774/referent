@@ -2,13 +2,22 @@
 
 import { useMemo, useState } from "react";
 
-import type { ActionKey, AnalysisResponse } from "@/lib/types";
+import type {
+  AnalyzeResponse,
+  RequestActionKey,
+} from "@/lib/types";
 
 const actions: {
-  key: ActionKey;
+  key: RequestActionKey;
   label: string;
   description: string;
 }[] = [
+  {
+    key: "parse",
+    label: "Парсинг HTML",
+    description:
+      "Найти дату, заголовок статьи и основной контент страницы и вернуть JSON.",
+  },
   {
     key: "summary",
     label: "Суть",
@@ -28,8 +37,8 @@ const actions: {
 
 export default function Home() {
   const [url, setUrl] = useState("");
-  const [selectedAction, setSelectedAction] = useState<ActionKey>("summary");
-  const [result, setResult] = useState<AnalysisResponse | null>(null);
+  const [selectedAction, setSelectedAction] = useState<RequestActionKey>("summary");
+  const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -37,10 +46,23 @@ export default function Home() {
   const resultContent = useMemo(() => {
     if (!result) {
       return {
-        body: "После запуска анализа здесь появится готовый текст по выбранному сценарию.",
+        body:
+          "После запуска здесь появится либо готовый AI-ответ, либо JSON с результатом HTML-парсинга.",
         points: [
-          "Будет показан ответ по одному из сценариев: Суть, Тезисы или Пост.",
-          "Ниже отобразятся заголовок статьи, дата, адрес и режим генерации.",
+          "Можно выбрать один из AI-сценариев: Суть, Тезисы, Пост.",
+          "Можно отдельно запустить Парсинг HTML и получить JSON { date, title, content }.",
+        ],
+      };
+    }
+
+    if (result.mode === "parse") {
+      return {
+        body: JSON.stringify(result.parsed, null, 2),
+        points: [
+          `Дата публикации: ${result.article.date ?? "не найдена"}`,
+          `Заголовок: ${result.article.title}`,
+          `Адрес статьи: ${result.article.url}`,
+          "Режим генерации: HTML-парсер",
         ],
       };
     }
@@ -63,6 +85,16 @@ export default function Home() {
       return "";
     }
 
+    if (result.mode === "parse") {
+      return [
+        JSON.stringify(result.parsed, null, 2),
+        `Дата публикации: ${result.article.date ?? "не найдена"}`,
+        `Заголовок: ${result.article.title}`,
+        `Адрес статьи: ${result.article.url}`,
+        "Режим генерации: HTML-парсер",
+      ].join("\n\n");
+    }
+
     return [
       result.result,
       `Дата публикации: ${result.article.date ?? "не найдена"}`,
@@ -74,7 +106,7 @@ export default function Home() {
     ].join("\n\n");
   }, [result]);
 
-  async function runAnalysis(action: ActionKey) {
+  async function runAnalysis(action: RequestActionKey) {
     if (!url.trim()) {
       setError("Сначала вставьте URL статьи.");
       return;
@@ -108,7 +140,7 @@ export default function Home() {
         );
       }
 
-      const data = (await response.json()) as AnalysisResponse & { error?: string };
+      const data = (await response.json()) as AnalyzeResponse & { error?: string };
 
       if (!response.ok) {
         throw new Error(data.error || "Не удалось получить результат анализа.");
@@ -159,15 +191,18 @@ export default function Home() {
       <div className="app-shell">
         <section className="app-card app-card--accent">
           <p className="app-eyebrow">Referent AI</p>
-          <h1 className="app-title">Разбор англоязычных статей с помощью OpenAI</h1>
+          <h1 className="app-title">
+            Разбор англоязычных статей: OpenAI и парсинг HTML
+          </h1>
         </section>
 
         <section className="app-card">
           <h2 className="app-sectionTitle">Описание сервиса</h2>
           <p className="app-text">
             Сервис загружает статью по URL, извлекает заголовок, дату и основной
-            контент, а затем передаёт материал в OpenAI для подготовки ответа на
-            русском языке по выбранному сценарию.
+            контент. Затем можно либо получить JSON с результатом HTML-парсинга,
+            либо передать материал в OpenAI для подготовки ответа на русском
+            языке по выбранному сценарию.
           </p>
         </section>
 
@@ -175,8 +210,8 @@ export default function Home() {
           <h2 className="app-sectionTitle">Инструкция</h2>
           <ol className="app-instructionList">
             <li>Вставьте URL англоязычной статьи.</li>
-            <li>Выберите один из трёх сценариев: Суть, Тезисы или Пост.</li>
-            <li>Получите результат обработки статьи в блоке ниже.</li>
+            <li>Выберите парсинг HTML или один из сценариев OpenAI.</li>
+            <li>Получите JSON или текстовый результат обработки в блоке ниже.</li>
           </ol>
         </section>
 
@@ -228,7 +263,9 @@ export default function Home() {
                 {isLoading
                   ? "Идёт обработка статьи..."
                   : result
-                    ? "Результат сформирован."
+                    ? result.mode === "parse"
+                      ? "JSON с результатом парсинга сформирован."
+                      : "Результат AI-обработки сформирован."
                     : "Ожидается запуск анализа."}
               </p>
             </div>

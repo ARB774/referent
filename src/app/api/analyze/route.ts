@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 
 import { generateAnalysis } from "@/lib/ai";
 import { fetchArticle } from "@/lib/article";
-import type { ActionKey, AnalysisResponse } from "@/lib/types";
+import type {
+  ActionKey,
+  AnalysisResponse,
+  AnalyzeResponse,
+  RequestActionKey,
+} from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,8 +18,13 @@ const TITLES: Record<ActionKey, string> = {
   telegram: "Пост",
 };
 
-function isActionKey(value: string): value is ActionKey {
-  return value === "summary" || value === "theses" || value === "telegram";
+function isRequestActionKey(value: string): value is RequestActionKey {
+  return (
+    value === "summary" ||
+    value === "theses" ||
+    value === "telegram" ||
+    value === "parse"
+  );
 }
 
 export async function POST(request: Request) {
@@ -34,7 +44,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!action || !isActionKey(action)) {
+    if (!action || !isRequestActionKey(action)) {
       return NextResponse.json(
         { error: "Укажите корректное действие для анализа." },
         { status: 400 },
@@ -42,9 +52,31 @@ export async function POST(request: Request) {
     }
 
     const article = await fetchArticle(url);
-    const analysis = await generateAnalysis(action, article);
 
+    if (action === "parse") {
+      const response: AnalyzeResponse = {
+        mode: "parse",
+        title: "Парсинг HTML",
+        provider: "html-parser",
+        article: {
+          date: article.date,
+          title: article.title,
+          excerpt: article.excerpt,
+          url: article.url,
+        },
+        parsed: {
+          date: article.date,
+          title: article.title,
+          content: article.content,
+        },
+      };
+
+      return NextResponse.json(response, { status: 200 });
+    }
+
+    const analysis = await generateAnalysis(action, article);
     const response: AnalysisResponse = {
+      mode: "ai",
       title: TITLES[action],
       result: analysis.result,
       provider: analysis.provider,
