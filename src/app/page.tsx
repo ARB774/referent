@@ -165,7 +165,7 @@ export default function Home() {
         </section>
 
         <section className="app-card">
-          <h2 className="app-sectionTitle">Рабочий блок</h2>
+          <h2 className="app-sectionTitle">Рабочая область</h2>
           <form
             className="app-form"
             onSubmit={(event) => event.preventDefault()}
