@@ -13,12 +13,6 @@ const actions: {
   description: string;
 }[] = [
   {
-    key: "parse",
-    label: "Парсинг HTML",
-    description:
-      "Найти дату, заголовок статьи и основной контент страницы и вернуть JSON.",
-  },
-  {
     key: "summary",
     label: "Суть",
     description: "Кратко объяснить, о чем статья и в чем ее основная мысль.",
@@ -34,6 +28,13 @@ const actions: {
     description: "Подготовить короткий пост для Telegram по содержанию статьи.",
   },
 ];
+
+const parseAction = {
+  key: "parse" as const,
+  label: "Парсинг HTML",
+  description:
+    "Найти дату, заголовок статьи и основной контент страницы и вернуть JSON.",
+};
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -232,6 +233,23 @@ export default function Home() {
               placeholder="https://example.com/article"
               className="app-input"
             />
+            <div className="app-actionGroup">
+              <p className="app-actionLabel">Парсинг статьи</p>
+              <button
+                type="button"
+                title={parseAction.description}
+                onClick={() => runAnalysis(parseAction.key)}
+                disabled={isLoading}
+                className={`app-button app-button--feature ${
+                  selectedAction === parseAction.key ? "app-button--active" : ""
+                }`}
+              >
+                {parseAction.label}
+              </button>
+            </div>
+
+            <div className="app-actionGroup">
+              <p className="app-actionLabel">AI-сценарии OpenAI</p>
             <div className="app-actions">
               {actions.map((action) => {
                 const isActive = action.key === selectedAction;
@@ -249,6 +267,7 @@ export default function Home() {
                   </button>
                 );
               })}
+            </div>
             </div>
 
             {error ? <div className="app-error">{error}</div> : null}
