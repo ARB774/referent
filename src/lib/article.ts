@@ -1,3 +1,5 @@
+import type { CheerioAPI } from "cheerio";
+
 import type { ParsedArticle } from "./types";
 
 const USER_AGENT =
@@ -11,6 +13,44 @@ function safeHostname(value: string) {
   return value.replace(/^www\./, "");
 }
 
+// #region debug-point A:reporting
+async function reportDebug(
+  msg: string,
+  data: Record<string, unknown> = {},
+) {
+  let debugUrl = "http://127.0.0.1:7777/event";
+  let sessionId = "vercel-build-fail";
+
+  try {
+    const fs = await import("node:fs/promises");
+    const envText = await fs.readFile(".dbg/vercel-build-fail.env", "utf8");
+    debugUrl =
+      envText.match(/^DEBUG_SERVER_URL=(.+)$/m)?.[1]?.trim() || debugUrl;
+    sessionId =
+      envText.match(/^DEBUG_SESSION_ID=(.+)$/m)?.[1]?.trim() || sessionId;
+  } catch {}
+
+  try {
+    await fetch(debugUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sessionId,
+        runId: "post-fix",
+        hypothesisId: "A",
+        location: "src/lib/article.ts:fetchArticle",
+        msg: `[DEBUG] ${msg}`,
+        data,
+        ts: Date.now(),
+      }),
+      cache: "no-store",
+    });
+  } catch {}
+}
+// #endregion
+
 function firstNonEmpty(values: Array<string | undefined>) {
   for (const value of values) {
     const normalized = normalizeWhitespace(value ?? "");
@@ -23,7 +63,7 @@ function firstNonEmpty(values: Array<string | undefined>) {
   return "";
 }
 
-function extractDate($: Awaited<ReturnType<typeof import("cheerio")>>["load"]) {
+function extractDate($: CheerioAPI) {
   const selectors = [
     'meta[property="article:published_time"]',
     'meta[property="og:published_time"]',
@@ -57,10 +97,7 @@ function extractDate($: Awaited<ReturnType<typeof import("cheerio")>>["load"]) {
   return null;
 }
 
-function extractMainContent(
-  $: Awaited<ReturnType<typeof import("cheerio")>>["load"],
-  url: URL,
-) {
+function extractMainContent($: CheerioAPI, url: URL) {
   const selectors = [
     "article",
     '[itemprop="articleBody"]',
@@ -155,6 +192,15 @@ export async function fetchArticle(urlString: string): Promise<ParsedArticle> {
 
   const date = extractDate($);
   const content = extractMainContent($, url);
+
+  // #region debug-point A:extracted-article
+  await reportDebug("Extracted parsed article", {
+    hostname: safeHostname(url.hostname),
+    hasDate: Boolean(date),
+    titleLength: title.length,
+    contentLength: content.length,
+  });
+  // #endregion
 
   return {
     date,
