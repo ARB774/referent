@@ -1,8 +1,25 @@
 import type { ActionKey, ArticleContent } from "./types";
 
-const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-const OPENAI_BASE_URL =
-  process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+const DEFAULT_MODEL =
+  process.env.TRAE_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+class AiProviderError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AiProviderError";
+  }
+}
+
+function getTraeConfig() {
+  const apiKey = process.env.TRAE_API_KEY || process.env.OPENAI_API_KEY;
+  const baseUrl = process.env.TRAE_BASE_URL || process.env.OPENAI_BASE_URL;
+
+  return {
+    apiKey,
+    baseUrl: baseUrl?.replace(/\/$/, ""),
+    model: DEFAULT_MODEL,
+  };
+}
 
 function buildPrompt(action: ActionKey, article: ArticleContent) {
   const commonContext = `You are an assistant that analyzes English-language articles and writes answers in Russian.
@@ -89,7 +106,7 @@ function localFallback(action: ActionKey, article: ArticleContent) {
         `- Автор материала: ${author}.`,
         `- Текст успешно извлечён и готов для AI-обработки.`,
         `- Объём статьи позволяет получить краткий пересказ, тезисы и адаптацию под Telegram.`,
-        `- Для содержательных тезисов на русском языке лучше использовать режим с подключённым AI.`,
+        `- Для содержательных тезисов на русском языке лучше использовать режим с подключённым TraeAI.`,
       ].join("\n");
     case "telegram":
       return [
@@ -98,28 +115,28 @@ function localFallback(action: ActionKey, article: ArticleContent) {
         `Источник: ${siteName}.`,
         `Автор: ${author}.`,
         "Сейчас доступен резервный русскоязычный шаблон без AI-пересказа.",
-        "После подключения AI приложение сможет превратить статью в полноценный пост для Telegram с кратким хуком, тезисами и выводом.",
+        "После подключения TraeAI приложение сможет превратить статью в полноценный пост для Telegram с кратким хуком, тезисами и выводом.",
         "",
         "Готов продолжить обработку и выдать итоговый пост после AI-анализа.",
       ].join("\n");
   }
 }
 
-async function openAiCompletion(action: ActionKey, article: ArticleContent) {
-  const apiKey = process.env.OPENAI_API_KEY;
+async function traeAiCompletion(action: ActionKey, article: ArticleContent) {
+  const { apiKey, baseUrl, model } = getTraeConfig();
 
-  if (!apiKey) {
+  if (!apiKey || !baseUrl) {
     return null;
   }
 
-  const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: DEFAULT_MODEL,
+      model,
       temperature: 0.4,
       messages: [
         {
@@ -138,8 +155,33 @@ async function openAiCompletion(action: ActionKey, article: ArticleContent) {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI provider error: ${response.status} ${errorText}`);
+    if (response.status === 401) {
+      throw new AiProviderError(
+        "TraeAI key не принят. Проверьте правильность `TRAE_API_KEY`.",
+      );
+    }
+
+    if (response.status === 403) {
+      throw new AiProviderError(
+        "TraeAI отклонил доступ. Проверьте права доступа для ключа и проекта.",
+      );
+    }
+
+    if (response.status === 404) {
+      throw new AiProviderError(
+        "TraeAI не нашёл указанный ресурс. Проверьте `TRAE_MODEL` и `TRAE_BASE_URL`.",
+      );
+    }
+
+    if (response.status === 429) {
+      throw new AiProviderError(
+        "TraeAI сейчас недоступен для этого ключа: достигнут лимит, квота или отсутствует активный биллинг.",
+      );
+    }
+
+    throw new AiProviderError(
+      `TraeAI вернул ошибку ${response.status}. Попробуйте позже или проверьте настройки API.`,
+    );
   }
 
   const data = (await response.json()) as {
@@ -155,15 +197,19 @@ async function openAiCompletion(action: ActionKey, article: ArticleContent) {
 
 export async function generateAnalysis(action: ActionKey, article: ArticleContent) {
   try {
-    const aiResult = await openAiCompletion(action, article);
+    const aiResult = await traeAiCompletion(action, article);
 
     if (aiResult) {
       return {
-        provider: "openai" as const,
+        provider: "traeai" as const,
         result: aiResult,
       };
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof AiProviderError) {
+      throw error;
+    }
+
     // Fall through to a deterministic local response if the AI provider is not available.
   }
 
