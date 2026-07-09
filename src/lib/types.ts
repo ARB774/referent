@@ -1,23 +1,8 @@
-export type ActionKey = "summary" | "theses" | "telegram";
-
-export type ArticleContent = {
+export type ParsedArticle = {
+  date: string | null;
   title: string;
-  text: string;
-  excerpt: string;
-  byline?: string;
-  siteName?: string;
+  content: string;
   url: string;
 };
 
-export type AnalysisResponse = {
-  title: string;
-  result: string;
-  provider: "openai" | "local-fallback";
-  article: {
-    title: string;
-    excerpt: string;
-    byline?: string;
-    siteName?: string;
-    url: string;
-  };
-};
+export type AnalysisResponse = ParsedArticle;

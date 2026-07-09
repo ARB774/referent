@@ -1,4 +1,4 @@
-import type { ArticleContent } from "./types";
+import type { ParsedArticle } from "./types";
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; ReferentAI/1.0; +https://referent-zeta.vercel.app)";
@@ -7,13 +7,99 @@ function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function extractExcerpt(text: string) {
-  const excerpt = normalizeWhitespace(text).slice(0, 280);
-  return excerpt.length < text.length ? `${excerpt}...` : excerpt;
-}
-
 function safeHostname(value: string) {
   return value.replace(/^www\./, "");
+}
+
+function firstNonEmpty(values: Array<string | undefined>) {
+  for (const value of values) {
+    const normalized = normalizeWhitespace(value ?? "");
+
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "";
+}
+
+function extractDate($: Awaited<ReturnType<typeof import("cheerio")>>["load"]) {
+  const selectors = [
+    'meta[property="article:published_time"]',
+    'meta[property="og:published_time"]',
+    'meta[name="publish-date"]',
+    'meta[name="publication_date"]',
+    'meta[name="pubdate"]',
+    'meta[name="date"]',
+    'meta[itemprop="datePublished"]',
+    'time[datetime]',
+    '[itemprop="datePublished"]',
+    ".post-date",
+    ".entry-date",
+    ".article-date",
+    ".published",
+    ".date",
+  ];
+
+  for (const selector of selectors) {
+    const element = $(selector).first();
+    const value = firstNonEmpty([
+      element.attr("content"),
+      element.attr("datetime"),
+      element.text(),
+    ]);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function extractMainContent(
+  $: Awaited<ReturnType<typeof import("cheerio")>>["load"],
+  url: URL,
+) {
+  const selectors = [
+    "article",
+    '[itemprop="articleBody"]',
+    "#mw-content-text",
+    ".mw-parser-output",
+    ".post-content",
+    ".entry-content",
+    ".article-content",
+    ".story-content",
+    ".main-content",
+    ".post",
+    ".content",
+    "main",
+    "body",
+  ];
+
+  let bestText = "";
+
+  for (const selector of selectors) {
+    $(selector).each((_, element) => {
+      const text = normalizeWhitespace($(element).text());
+
+      if (text.length > bestText.length) {
+        bestText = text;
+      }
+    });
+
+    if (bestText.length >= 400) {
+      return bestText;
+    }
+  }
+
+  if (bestText.length < 200) {
+    throw new Error(
+      `Не удалось извлечь основной контент статьи с ${safeHostname(url.hostname)}.`,
+    );
+  }
+
+  return bestText;
 }
 
 function assertAllowedUrl(urlString: string) {
@@ -32,7 +118,7 @@ function assertAllowedUrl(urlString: string) {
   return parsed;
 }
 
-export async function fetchArticle(urlString: string): Promise<ArticleContent> {
+export async function fetchArticle(urlString: string): Promise<ParsedArticle> {
   const url = assertAllowedUrl(urlString);
 
   const response = await fetch(url, {
@@ -52,54 +138,28 @@ export async function fetchArticle(urlString: string): Promise<ArticleContent> {
   const cheerioModule = await import("cheerio");
   const $ = cheerioModule.load(html);
 
-  const title =
-    normalizeWhitespace(
-      $('meta[property="og:title"]').attr("content") ||
-        $('meta[name="twitter:title"]').attr("content") ||
-        $("title").text() ||
-        url.hostname,
-    ) || url.hostname;
-
-  const siteName = normalizeWhitespace(
-    $('meta[property="og:site_name"]').attr("content") || safeHostname(url.hostname),
-  );
-
-  const byline = normalizeWhitespace(
-    $('meta[name="author"]').attr("content") ||
-      $('[itemprop="author"]').first().text() ||
-      "",
-  );
-
-  const metaDescription = normalizeWhitespace(
-    $('meta[property="og:description"]').attr("content") ||
-      $('meta[name="description"]').attr("content") ||
-      "",
-  );
-
   $("script, style, noscript, svg, iframe").remove();
   $("header, footer, nav, aside").remove();
+  $(
+    ".navbox, .infobox, .sidebar, .toc, .references, .reference, .mw-editsection, .metadata, .advert, .ads, .social-share, .related, .recommended, .newsletter, form",
+  ).remove();
 
-  const candidate =
-    $("article").first().length
-      ? $("article").first()
-      : $("main").first().length
-        ? $("main").first()
-        : $("body");
+  const title =
+    firstNonEmpty([
+      $('meta[property="og:title"]').attr("content"),
+      $('meta[name="twitter:title"]').attr("content"),
+      $("h1").first().text(),
+      $("title").text(),
+      url.hostname,
+    ]) || url.hostname;
 
-  const text = normalizeWhitespace(candidate.text());
-
-  if (text.length < 400) {
-    throw new Error(
-      "Извлечённого текста слишком мало для анализа. Нужна полноценная статья.",
-    );
-  }
+  const date = extractDate($);
+  const content = extractMainContent($, url);
 
   return {
+    date,
     title,
-    text,
-    excerpt: metaDescription || extractExcerpt(text),
-    byline: byline || undefined,
-    siteName: siteName || safeHostname(url.hostname),
+    content,
     url: url.toString(),
   };
 }

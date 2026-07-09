@@ -152,7 +152,7 @@ input {
 
 .app-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
@@ -250,6 +250,8 @@ input {
   margin-top: 18px;
   white-space: pre-wrap;
   color: var(--dark-color);
+  font-family: var(--font-geist-mono), "Courier New", monospace;
+  overflow-x: auto;
 }
 
 .app-metaList {
