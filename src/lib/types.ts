@@ -14,7 +14,7 @@ export type AnalysisResponse = {
   mode: "ai";
   title: string;
   result: string;
-  provider: "openai" | "local-fallback";
+  provider: "openrouter" | "local-fallback";
   article: {
     date: string | null;
     title: string;

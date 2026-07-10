@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Referent",
-  description: "Интерфейс для анализа англоязычных статей с помощью OpenAI.",
+  description: "Интерфейс для анализа англоязычных статей с помощью OpenRouter.",
 };
 
 export default function RootLayout({

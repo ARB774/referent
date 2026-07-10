@@ -1,8 +1,17 @@
 import type { ActionKey, ArticleContent } from "./types";
 
-const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-const OPENAI_BASE_URL =
-  process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+const DEFAULT_MODEL =
+  process.env.OPENROUTER_MODEL ||
+  process.env.OPENAI_MODEL ||
+  "openai/gpt-4o-mini";
+const OPENROUTER_BASE_URL =
+  process.env.OPENROUTER_BASE_URL ||
+  process.env.OPENAI_BASE_URL ||
+  "https://openrouter.ai/api/v1";
+const OPENROUTER_SITE_URL =
+  process.env.OPENROUTER_SITE_URL || "https://referent-zeta.vercel.app";
+const OPENROUTER_APP_NAME =
+  process.env.OPENROUTER_APP_NAME || "Referent AI";
 
 function buildPrompt(action: ActionKey, article: ArticleContent) {
   const commonContext = `You analyze English-language articles and write polished answers in Russian.
@@ -51,11 +60,11 @@ function localFallback(action: ActionKey, article: ArticleContent) {
     case "summary":
       return [
         `Статья "${article.title}" успешно загружена и распознана.`,
-        `${dateLine} Сейчас ответ сформирован в резервном режиме без OpenAI.`,
+        `${dateLine} Сейчас ответ сформирован в резервном режиме без OpenRouter.`,
         "",
         `- Основной текст статьи извлечён.`,
         `- Доступен URL источника: ${article.url}.`,
-        `- Для полноценной краткой выжимки нужен активный OpenAI API key.`,
+        `- Для полноценной краткой выжимки нужен активный OpenRouter API key.`,
       ].join("\n");
     case "theses":
       return [
@@ -63,7 +72,7 @@ function localFallback(action: ActionKey, article: ArticleContent) {
         "",
         `- ${dateLine}`,
         `- Контент статьи извлечён и готов к AI-обработке.`,
-        `- После подключения OpenAI здесь появятся содержательные тезисы на русском языке.`,
+        `- После подключения OpenRouter здесь появятся содержательные тезисы на русском языке.`,
       ].join("\n");
     case "telegram":
       return [
@@ -71,23 +80,25 @@ function localFallback(action: ActionKey, article: ArticleContent) {
         "",
         `- ${dateLine}`,
         `- Источник: ${article.url}`,
-        `- После подключения OpenAI приложение сможет собрать полноценный пост для Telegram.`,
+        `- После подключения OpenRouter приложение сможет собрать полноценный пост для Telegram.`,
       ].join("\n");
   }
 }
 
-async function openAiCompletion(action: ActionKey, article: ArticleContent) {
-  const apiKey = process.env.OPENAI_API_KEY;
+async function openRouterCompletion(action: ActionKey, article: ArticleContent) {
+  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
     return null;
   }
 
-  const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      "HTTP-Referer": OPENROUTER_SITE_URL,
+      "X-OpenRouter-Title": OPENROUTER_APP_NAME,
     },
     body: JSON.stringify({
       model: DEFAULT_MODEL,
@@ -110,7 +121,7 @@ async function openAiCompletion(action: ActionKey, article: ArticleContent) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`AI provider error: ${response.status} ${errorText}`);
+    throw new Error(`OpenRouter error: ${response.status} ${errorText}`);
   }
 
   const data = (await response.json()) as {
@@ -126,11 +137,11 @@ async function openAiCompletion(action: ActionKey, article: ArticleContent) {
 
 export async function generateAnalysis(action: ActionKey, article: ArticleContent) {
   try {
-    const aiResult = await openAiCompletion(action, article);
+    const aiResult = await openRouterCompletion(action, article);
 
     if (aiResult) {
       return {
-        provider: "openai" as const,
+        provider: "openrouter" as const,
         result: aiResult,
       };
     }

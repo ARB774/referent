@@ -75,7 +75,7 @@ export default function Home() {
         `Заголовок: ${result.article.title}`,
         `Адрес статьи: ${result.article.url}`,
         `Режим генерации: ${
-          result.provider === "openai" ? "AI (OpenAI)" : "Резервный локальный режим"
+          result.provider === "openrouter" ? "AI (OpenRouter)" : "Резервный локальный режим"
         }`,
       ],
     };
@@ -102,7 +102,7 @@ export default function Home() {
       `Заголовок: ${result.article.title}`,
       `Адрес статьи: ${result.article.url}`,
       `Режим генерации: ${
-        result.provider === "openai" ? "AI (OpenAI)" : "Резервный локальный режим"
+        result.provider === "openrouter" ? "AI (OpenRouter)" : "Резервный локальный режим"
       }`,
     ].join("\n\n");
   }, [result]);
@@ -193,7 +193,7 @@ export default function Home() {
         <section className="app-card app-card--accent">
           <p className="app-eyebrow">Referent AI</p>
           <h1 className="app-title">
-            Разбор англоязычных статей: OpenAI и парсинг HTML
+            Разбор англоязычных статей: OpenRouter и парсинг HTML
           </h1>
         </section>
 
@@ -202,7 +202,7 @@ export default function Home() {
           <p className="app-text">
             Сервис загружает статью по URL, извлекает заголовок, дату и основной
             контент. Затем можно либо получить JSON с результатом HTML-парсинга,
-            либо передать материал в OpenAI для подготовки ответа на русском
+            либо передать материал в OpenRouter для подготовки ответа на русском
             языке по выбранному сценарию.
           </p>
         </section>
@@ -211,7 +211,7 @@ export default function Home() {
           <h2 className="app-sectionTitle">Инструкция</h2>
           <ol className="app-instructionList">
             <li>Вставьте URL англоязычной статьи.</li>
-            <li>Выберите парсинг HTML или один из сценариев OpenAI.</li>
+            <li>Выберите парсинг HTML или один из сценариев OpenRouter.</li>
             <li>Получите JSON или текстовый результат обработки в блоке ниже.</li>
           </ol>
         </section>
@@ -249,7 +249,7 @@ export default function Home() {
             </div>
 
             <div className="app-actionGroup">
-              <p className="app-actionLabel">AI-сценарии OpenAI</p>
+              <p className="app-actionLabel">AI-сценарии OpenRouter</p>
             <div className="app-actions">
               {actions.map((action) => {
                 const isActive = action.key === selectedAction;
