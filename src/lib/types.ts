@@ -1,4 +1,4 @@
-export type ActionKey = "summary" | "theses" | "telegram";
+export type ActionKey = "summary" | "theses" | "telegram" | "translate";
 export type ParseActionKey = "parse";
 export type RequestActionKey = ActionKey | ParseActionKey;
 

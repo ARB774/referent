@@ -16,6 +16,7 @@ const TITLES: Record<ActionKey, string> = {
   summary: "Суть",
   theses: "Тезисы",
   telegram: "Пост",
+  translate: "Перевести",
 };
 
 function isRequestActionKey(value: string): value is RequestActionKey {
@@ -23,6 +24,7 @@ function isRequestActionKey(value: string): value is RequestActionKey {
     value === "summary" ||
     value === "theses" ||
     value === "telegram" ||
+    value === "translate" ||
     value === "parse"
   );
 }

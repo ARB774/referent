@@ -29,6 +29,12 @@ const actions: {
   },
 ];
 
+const translateAction = {
+  key: "translate" as const,
+  label: "Перевести",
+  description: "Перевести полный текст статьи на русский язык через OpenRouter.",
+};
+
 const parseAction = {
   key: "parse" as const,
   label: "Парсинг HTML",
@@ -38,7 +44,7 @@ const parseAction = {
 
 export default function Home() {
   const [url, setUrl] = useState("");
-  const [selectedAction, setSelectedAction] = useState<RequestActionKey>("summary");
+  const [selectedAction, setSelectedAction] = useState<RequestActionKey | null>(null);
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -50,7 +56,7 @@ export default function Home() {
         body:
           "После запуска здесь появится либо готовый AI-ответ, либо JSON с результатом HTML-парсинга.",
         points: [
-          "Можно выбрать один из AI-сценариев: Суть, Тезисы, Пост.",
+          "Можно выбрать один из AI-сценариев: Суть, Тезисы, Пост, Перевести.",
           "Можно отдельно запустить Парсинг HTML и получить JSON { date, title, content }.",
         ],
       };
@@ -250,24 +256,36 @@ export default function Home() {
 
             <div className="app-actionGroup">
               <p className="app-actionLabel">AI-сценарии OpenRouter</p>
-            <div className="app-actions">
-              {actions.map((action) => {
-                const isActive = action.key === selectedAction;
+              <div className="app-actions">
+                {actions.map((action) => {
+                  const isActive = action.key === selectedAction;
 
-                return (
-                  <button
-                    key={action.key}
-                    type="button"
-                    title={action.description}
-                    onClick={() => runAnalysis(action.key)}
-                    disabled={isLoading}
-                    className={`app-button ${isActive ? "app-button--active" : ""}`}
-                  >
-                    {action.label}
-                  </button>
-                );
-              })}
-            </div>
+                  return (
+                    <button
+                      key={action.key}
+                      type="button"
+                      title={action.description}
+                      onClick={() => runAnalysis(action.key)}
+                      disabled={isLoading}
+                      className={`app-button ${isActive ? "app-button--active" : ""}`}
+                    >
+                      {action.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                title={translateAction.description}
+                onClick={() => runAnalysis(translateAction.key)}
+                disabled={isLoading}
+                className={`app-button app-button--translate ${
+                  selectedAction === translateAction.key ? "app-button--active" : ""
+                }`}
+              >
+                {translateAction.label}
+              </button>
             </div>
 
             {error ? <div className="app-error">{error}</div> : null}

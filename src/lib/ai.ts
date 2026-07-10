@@ -4,6 +4,8 @@ const DEFAULT_MODEL =
   process.env.OPENROUTER_MODEL ||
   process.env.OPENAI_MODEL ||
   "openai/gpt-4o-mini";
+const TRANSLATE_MODEL =
+  process.env.OPENROUTER_TRANSLATE_MODEL || "deepseek/deepseek-v4-flash";
 const OPENROUTER_BASE_URL =
   process.env.OPENROUTER_BASE_URL ||
   process.env.OPENAI_BASE_URL ||
@@ -50,6 +52,15 @@ Task:
 - Добавь короткий хук, основную мысль и финальную фразу.
 - Сделай текст живым и удобным для чтения.
 `;
+    case "translate":
+      return `${commonContext}
+
+Task:
+- Переведи статью на русский язык.
+- Сохрани структуру и смысл оригинала.
+- Не пересказывай и не сокращай материал без необходимости.
+- Верни только перевод статьи без пояснений от себя.
+`;
   }
 }
 
@@ -82,6 +93,14 @@ function localFallback(action: ActionKey, article: ArticleContent) {
         `- Источник: ${article.url}`,
         `- После подключения OpenRouter приложение сможет собрать полноценный пост для Telegram.`,
       ].join("\n");
+    case "translate":
+      return [
+        `Перевод статьи "${article.title}" пока показан в резервном режиме.`,
+        "",
+        `- ${dateLine}`,
+        `- Основной контент статьи извлечён.`,
+        `- После подключения OpenRouter здесь появится полный перевод на русский язык.`,
+      ].join("\n");
   }
 }
 
@@ -101,7 +120,7 @@ async function openRouterCompletion(action: ActionKey, article: ArticleContent) 
       "X-OpenRouter-Title": OPENROUTER_APP_NAME,
     },
     body: JSON.stringify({
-      model: DEFAULT_MODEL,
+      model: action === "translate" ? TRANSLATE_MODEL : DEFAULT_MODEL,
       temperature: 0.4,
       messages: [
         {
