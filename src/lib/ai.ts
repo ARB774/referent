@@ -17,10 +17,52 @@ const OPENROUTER_SITE_URL =
 const OPENROUTER_APP_NAME =
   process.env.OPENROUTER_APP_NAME || "Referent AI";
 const HUGGINGFACE_BASE_URL =
-  process.env.HUGGINGFACE_BASE_URL || "https://api-inference.huggingface.co";
+  process.env.HUGGINGFACE_BASE_URL ||
+  "https://router.huggingface.co/hf-inference/models";
 const HUGGINGFACE_IMAGE_MODEL =
   process.env.HUGGINGFACE_IMAGE_MODEL ||
-  "stabilityai/stable-diffusion-xl-base-1.0";
+  "black-forest-labs/FLUX.1-schnell";
+
+// #region debug-point A:reporting
+async function reportDebug(
+  runId: "pre-fix" | "post-fix",
+  hypothesisId: "A" | "B" | "C" | "D" | "E",
+  location: string,
+  msg: string,
+  data: Record<string, unknown> = {},
+) {
+  let debugUrl = "http://127.0.0.1:7777/event";
+  let sessionId = "illustration-fetch-failed";
+
+  try {
+    const fs = await import("node:fs/promises");
+    const envText = await fs.readFile(".dbg/illustration-fetch-failed.env", "utf8");
+    debugUrl =
+      envText.match(/^DEBUG_SERVER_URL=(.+)$/m)?.[1]?.trim() || debugUrl;
+    sessionId =
+      envText.match(/^DEBUG_SESSION_ID=(.+)$/m)?.[1]?.trim() || sessionId;
+  } catch {}
+
+  try {
+    await fetch(debugUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sessionId,
+        runId,
+        hypothesisId,
+        location,
+        msg: `[DEBUG] ${msg}`,
+        data,
+        ts: Date.now(),
+      }),
+      cache: "no-store",
+    });
+  } catch {}
+}
+// #endregion
 
 function buildPrompt(action: ActionKey, article: ArticleContent) {
   const commonContext = `You analyze English-language articles and write polished answers in Russian.
@@ -215,7 +257,30 @@ Excerpt: ${article.excerpt}
 export async function generateIllustrationPrompt(article: ArticleContent) {
   const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
 
+  // #region debug-point A:illustration-prompt-start
+  await reportDebug(
+    "pre-fix",
+    "A",
+    "src/lib/ai.ts:generateIllustrationPrompt",
+    "Starting illustration prompt generation",
+    {
+      hasOpenRouterKey: Boolean(apiKey),
+      model: ILLUSTRATION_PROMPT_MODEL,
+      titleLength: article.title.length,
+      excerptLength: article.excerpt.length,
+    },
+  );
+  // #endregion
+
   if (!apiKey) {
+    // #region debug-point A:illustration-prompt-no-key
+    await reportDebug(
+      "pre-fix",
+      "A",
+      "src/lib/ai.ts:generateIllustrationPrompt",
+      "OpenRouter key missing, using local fallback prompt",
+    );
+    // #endregion
     return {
       provider: "local-fallback" as const,
       prompt: `Editorial illustration inspired by: ${article.title}, clean minimal composition, high contrast, soft lighting, vector style`,
@@ -250,8 +315,34 @@ export async function generateIllustrationPrompt(article: ArticleContent) {
       cache: "no-store",
     });
 
+    // #region debug-point A:illustration-prompt-response
+    await reportDebug(
+      "pre-fix",
+      "A",
+      "src/lib/ai.ts:generateIllustrationPrompt",
+      "OpenRouter illustration prompt response received",
+      {
+        ok: response.ok,
+        status: response.status,
+        contentType: response.headers.get("content-type") ?? "",
+      },
+    );
+    // #endregion
+
     if (!response.ok) {
       const errorText = await response.text();
+      // #region debug-point A:illustration-prompt-error
+      await reportDebug(
+        "pre-fix",
+        "A",
+        "src/lib/ai.ts:generateIllustrationPrompt",
+        "OpenRouter illustration prompt request failed",
+        {
+          status: response.status,
+          errorPreview: errorText.slice(0, 300),
+        },
+      );
+      // #endregion
       throw new Error(`OpenRouter error: ${response.status} ${errorText}`);
     }
 
@@ -266,11 +357,43 @@ export async function generateIllustrationPrompt(article: ArticleContent) {
     const prompt = data.choices?.[0]?.message?.content?.trim() || "";
 
     if (!prompt) {
+      // #region debug-point A:illustration-prompt-empty
+      await reportDebug(
+        "pre-fix",
+        "A",
+        "src/lib/ai.ts:generateIllustrationPrompt",
+        "OpenRouter returned empty illustration prompt",
+      );
+      // #endregion
       throw new Error("OpenRouter вернул пустой промпт для иллюстрации.");
     }
 
+    // #region debug-point A:illustration-prompt-success
+    await reportDebug(
+      "pre-fix",
+      "A",
+      "src/lib/ai.ts:generateIllustrationPrompt",
+      "Illustration prompt generated successfully",
+      {
+        promptLength: prompt.length,
+        promptPreview: prompt.slice(0, 180),
+      },
+    );
+    // #endregion
+
     return { provider: "openrouter" as const, prompt };
-  } catch {
+  } catch (error) {
+    // #region debug-point A:illustration-prompt-catch
+    await reportDebug(
+      "pre-fix",
+      "A",
+      "src/lib/ai.ts:generateIllustrationPrompt",
+      "Falling back to local illustration prompt after OpenRouter failure",
+      {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      },
+    );
+    // #endregion
     return {
       provider: "local-fallback" as const,
       prompt: `Editorial illustration inspired by: ${article.title}, clean minimal composition, high contrast, soft lighting, vector style`,
@@ -284,13 +407,39 @@ export async function generateIllustrationImage(prompt: string) {
     process.env.HUGGINGFACE_API_TOKEN ||
     process.env.HUGGINGFACEHUB_API_TOKEN;
 
+  // #region debug-point B:illustration-image-start
+  await reportDebug(
+    "pre-fix",
+    "B",
+    "src/lib/ai.ts:generateIllustrationImage",
+    "Starting Hugging Face image generation",
+    {
+      hasHfToken: Boolean(token),
+      model: HUGGINGFACE_IMAGE_MODEL,
+      baseUrl: HUGGINGFACE_BASE_URL,
+      promptLength: prompt.length,
+      promptPreview: prompt.slice(0, 180),
+    },
+  );
+  // #endregion
+
   if (!token) {
+    // #region debug-point C:illustration-image-no-token
+    await reportDebug(
+      "pre-fix",
+      "C",
+      "src/lib/ai.ts:generateIllustrationImage",
+      "Hugging Face token is missing",
+    );
+    // #endregion
     throw new Error("Не найден токен Hugging Face (HF_TOKEN).");
   }
 
-  const response = await fetch(
-    `${HUGGINGFACE_BASE_URL}/models/${HUGGINGFACE_IMAGE_MODEL}`,
-    {
+  const huggingFaceUrl = `${HUGGINGFACE_BASE_URL.replace(/\/+$/, "")}/${HUGGINGFACE_IMAGE_MODEL}`;
+  let response: Response;
+
+  try {
+    response = await fetch(huggingFaceUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -302,19 +451,78 @@ export async function generateIllustrationImage(prompt: string) {
       }),
       signal: AbortSignal.timeout(60000),
       cache: "no-store",
-    },
-  );
+    });
+  } catch (error) {
+    // #region debug-point B:illustration-image-fetch-exception
+    await reportDebug(
+      "post-fix",
+      "B",
+      "src/lib/ai.ts:generateIllustrationImage",
+      "Hugging Face fetch threw before receiving a response",
+      {
+        url: huggingFaceUrl,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      },
+    );
+    // #endregion
+    throw new Error(
+      "Не удалось подключиться к Hugging Face. Проверьте доступность endpoint и значение HUGGINGFACE_BASE_URL.",
+    );
+  }
 
   const contentType = response.headers.get("content-type") ?? "";
+
+  // #region debug-point B:illustration-image-response
+  await reportDebug(
+    "pre-fix",
+    response.ok ? "B" : "D",
+    "src/lib/ai.ts:generateIllustrationImage",
+    "Hugging Face image response received",
+    {
+      ok: response.ok,
+      status: response.status,
+      contentType,
+    },
+  );
+  // #endregion
 
   if (!response.ok) {
     if (contentType.includes("application/json")) {
       const data = (await response.json()) as { error?: string };
+      // #region debug-point D:illustration-image-json-error
+      await reportDebug(
+        "pre-fix",
+        "D",
+        "src/lib/ai.ts:generateIllustrationImage",
+        "Hugging Face returned JSON error payload",
+        {
+          status: response.status,
+          errorMessage: data.error ?? "",
+        },
+      );
+      // #endregion
+      if (response.status === 403) {
+        throw new Error(
+          "Токен Hugging Face не имеет прав для Inference Providers. Создайте fine-grained token с разрешением Inference > Make calls to the serverless Inference API.",
+        );
+      }
       throw new Error(data.error || "Hugging Face вернул ошибку при генерации изображения.");
     }
 
     const text = await response.text();
     const head = text.slice(0, 200).replace(/\s+/g, " ").trim();
+    // #region debug-point D:illustration-image-text-error
+    await reportDebug(
+      "pre-fix",
+      "D",
+      "src/lib/ai.ts:generateIllustrationImage",
+      "Hugging Face returned non-JSON error payload",
+      {
+        status: response.status,
+        errorPreview: head,
+      },
+    );
+    // #endregion
     throw new Error(
       `Hugging Face вернул ошибку (HTTP ${response.status}). Ответ начинается с: ${head}`,
     );
@@ -323,17 +531,52 @@ export async function generateIllustrationImage(prompt: string) {
   if (!contentType.startsWith("image/")) {
     if (contentType.includes("application/json")) {
       const data = (await response.json()) as { error?: string };
+      // #region debug-point D:illustration-image-not-image-json
+      await reportDebug(
+        "pre-fix",
+        "D",
+        "src/lib/ai.ts:generateIllustrationImage",
+        "Hugging Face returned JSON instead of image",
+        {
+          errorMessage: data.error ?? "",
+        },
+      );
+      // #endregion
       throw new Error(data.error || "Hugging Face вернул не изображение.");
     }
 
     const text = await response.text();
     const head = text.slice(0, 200).replace(/\s+/g, " ").trim();
+    // #region debug-point D:illustration-image-not-image-text
+    await reportDebug(
+      "pre-fix",
+      "D",
+      "src/lib/ai.ts:generateIllustrationImage",
+      "Hugging Face returned unexpected non-image payload",
+      {
+        errorPreview: head,
+      },
+    );
+    // #endregion
     throw new Error(`Hugging Face вернул не изображение. Ответ начинается с: ${head}`);
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
   const base64 = buffer.toString("base64");
   const dataUrl = `data:${contentType};base64,${base64}`;
+
+  // #region debug-point B:illustration-image-success
+  await reportDebug(
+    "pre-fix",
+    "B",
+    "src/lib/ai.ts:generateIllustrationImage",
+    "Hugging Face image generated successfully",
+    {
+      contentType,
+      bytes: buffer.length,
+    },
+  );
+  // #endregion
 
   return {
     dataUrl,

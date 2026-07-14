@@ -25,6 +25,47 @@ const TITLES: Record<ActionKey, string> = {
   illustration: "Иллюстрация",
 };
 
+// #region debug-point E:reporting
+async function reportDebug(
+  runId: "pre-fix" | "post-fix",
+  hypothesisId: "A" | "B" | "C" | "D" | "E",
+  location: string,
+  msg: string,
+  data: Record<string, unknown> = {},
+) {
+  let debugUrl = "http://127.0.0.1:7777/event";
+  let sessionId = "illustration-fetch-failed";
+
+  try {
+    const fs = await import("node:fs/promises");
+    const envText = await fs.readFile(".dbg/illustration-fetch-failed.env", "utf8");
+    debugUrl =
+      envText.match(/^DEBUG_SERVER_URL=(.+)$/m)?.[1]?.trim() || debugUrl;
+    sessionId =
+      envText.match(/^DEBUG_SESSION_ID=(.+)$/m)?.[1]?.trim() || sessionId;
+  } catch {}
+
+  try {
+    await fetch(debugUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sessionId,
+        runId,
+        hypothesisId,
+        location,
+        msg: `[DEBUG] ${msg}`,
+        data,
+        ts: Date.now(),
+      }),
+      cache: "no-store",
+    });
+  } catch {}
+}
+// #endregion
+
 function isRequestActionKey(value: string): value is RequestActionKey {
   return (
     value === "summary" ||
@@ -60,6 +101,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // #region debug-point E:route-start
+    await reportDebug(
+      "pre-fix",
+      "E",
+      "src/app/api/analyze/route.ts:POST",
+      "Analyze route received request",
+      {
+        action,
+        hasUrl: Boolean(url),
+      },
+    );
+    // #endregion
+
     const article = await fetchArticle(url);
 
     if (action === "parse") {
@@ -84,6 +138,19 @@ export async function POST(request: Request) {
     }
 
     if (action === "illustration") {
+      // #region debug-point E:route-illustration-start
+      await reportDebug(
+        "pre-fix",
+        "E",
+        "src/app/api/analyze/route.ts:POST",
+        "Starting illustration pipeline in route",
+        {
+          articleTitleLength: article.title.length,
+          articleContentLength: article.content.length,
+        },
+      );
+      // #endregion
+
       const promptResult = await generateIllustrationPrompt(article);
       const image = await generateIllustrationImage(promptResult.prompt);
 
@@ -101,6 +168,20 @@ export async function POST(request: Request) {
           url: article.url,
         },
       };
+
+      // #region debug-point E:route-illustration-success
+      await reportDebug(
+        "pre-fix",
+        "E",
+        "src/app/api/analyze/route.ts:POST",
+        "Illustration pipeline completed successfully",
+        {
+          promptProvider: promptResult.provider,
+          imageContentType: image.contentType,
+          dataUrlLength: image.dataUrl.length,
+        },
+      );
+      // #endregion
 
       return NextResponse.json(response, { status: 200 });
     }
@@ -125,6 +206,18 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Не удалось обработать статью. Попробуйте ещё раз.";
+
+    // #region debug-point E:route-catch
+    await reportDebug(
+      "pre-fix",
+      "E",
+      "src/app/api/analyze/route.ts:POST",
+      "Analyze route caught an error",
+      {
+        errorMessage: message,
+      },
+    );
+    // #endregion
 
     const status =
       message.includes("Укажите") ||
