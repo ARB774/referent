@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Fragment, useMemo, useState } from "react";
 
 import type {
@@ -120,7 +121,14 @@ function ImageResultBody({
 }) {
   return (
     <div className="app-imageResult">
-      <img className="app-illustration" src={dataUrl} alt={title} />
+      <Image
+        className="app-illustration"
+        src={dataUrl}
+        alt={title}
+        width={1024}
+        height={1024}
+        unoptimized
+      />
       <div className="app-imagePrompt">
         <div className="app-imagePromptLabel">Промпт</div>
         <div className="app-imagePromptText">{renderLinkifiedText(prompt)}</div>
