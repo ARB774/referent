@@ -289,10 +289,28 @@ export async function generateIllustrationImage(prompt: string) {
     throw new Error("Не найден токен Hugging Face (HF_TOKEN).");
   }
 
+  const width = Number.parseInt(process.env.HUGGINGFACE_IMAGE_WIDTH || "", 10);
+  const height = Number.parseInt(process.env.HUGGINGFACE_IMAGE_HEIGHT || "", 10);
+  const steps = Number.parseInt(process.env.HUGGINGFACE_IMAGE_STEPS || "", 10);
+  const guidance = Number.parseFloat(process.env.HUGGINGFACE_IMAGE_GUIDANCE || "");
+  const seed = Number.parseInt(process.env.HUGGINGFACE_IMAGE_SEED || "", 10);
+
   const huggingFaceUrl = `${HUGGINGFACE_BASE_URL.replace(/\/+$/, "")}/${HUGGINGFACE_IMAGE_MODEL}`;
   let response: Response;
 
   try {
+    const parameters: Record<string, number> = {};
+
+    parameters.width = Number.isFinite(width) && width > 0 ? width : 768;
+    parameters.height = Number.isFinite(height) && height > 0 ? height : 768;
+    parameters.num_inference_steps = Number.isFinite(steps) && steps > 0 ? steps : 20;
+    parameters.guidance_scale =
+      Number.isFinite(guidance) && guidance > 0 ? guidance : 3.5;
+
+    if (Number.isFinite(seed) && seed >= 0) {
+      parameters.seed = seed;
+    }
+
     response = await fetch(huggingFaceUrl, {
       method: "POST",
       headers: {
@@ -302,6 +320,7 @@ export async function generateIllustrationImage(prompt: string) {
       },
       body: JSON.stringify({
         inputs: prompt,
+        parameters: Object.keys(parameters).length ? parameters : undefined,
       }),
       signal: AbortSignal.timeout(60000),
       cache: "no-store",
