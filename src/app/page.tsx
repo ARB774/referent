@@ -27,6 +27,11 @@ const actions: {
     label: "Пост",
     description: "Подготовить короткий пост для Telegram по содержанию статьи.",
   },
+  {
+    key: "illustration",
+    label: "Иллюстрация",
+    description: "Сгенерировать иллюстрацию по статье (OpenRouter → Hugging Face).",
+  },
 ];
 
 const translateAction = {
@@ -104,6 +109,26 @@ function AiResultBody({ text }: { text: string }) {
   );
 }
 
+function ImageResultBody({
+  title,
+  prompt,
+  dataUrl,
+}: {
+  title: string;
+  prompt: string;
+  dataUrl: string;
+}) {
+  return (
+    <div className="app-imageResult">
+      <img className="app-illustration" src={dataUrl} alt={title} />
+      <div className="app-imagePrompt">
+        <div className="app-imagePromptLabel">Промпт</div>
+        <div className="app-imagePromptText">{renderLinkifiedText(prompt)}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [selectedAction, setSelectedAction] = useState<RequestActionKey | null>(null);
@@ -121,6 +146,10 @@ export default function Home() {
       return "Загружаю и парсю статью…";
     }
 
+    if (selectedAction === "illustration") {
+      return "Генерирую иллюстрацию…";
+    }
+
     return "Загружаю статью…";
   }, [isLoading, selectedAction]);
 
@@ -130,7 +159,7 @@ export default function Home() {
         body:
           "После запуска здесь появится либо готовый AI-ответ, либо JSON с результатом HTML-парсинга.",
         points: [
-          "Можно выбрать один из AI-сценариев: Суть, Тезисы, Пост, Перевести.",
+          "Можно выбрать один из сценариев: Суть, Тезисы, Пост, Иллюстрация, Перевести.",
           "Можно отдельно запустить Парсинг HTML и получить JSON { date, title, content }.",
         ],
       };
@@ -144,6 +173,21 @@ export default function Home() {
           `Заголовок: ${result.article.title}`,
           `Адрес статьи: ${result.article.url}`,
           "Режим генерации: HTML-парсер",
+        ],
+      };
+    }
+
+    if (result.mode === "image") {
+      return {
+        body: result.prompt,
+        points: [
+          `Дата публикации: ${result.article.date ?? "не найдена"}`,
+          `Заголовок: ${result.article.title}`,
+          `Адрес статьи: ${result.article.url}`,
+          `Провайдер промпта: ${
+            result.promptProvider === "openrouter" ? "OpenRouter" : "Резервный локальный режим"
+          }`,
+          "Генерация изображения: Hugging Face",
         ],
       };
     }
@@ -173,6 +217,19 @@ export default function Home() {
         `Заголовок: ${result.article.title}`,
         `Адрес статьи: ${result.article.url}`,
         "Режим генерации: HTML-парсер",
+      ].join("\n\n");
+    }
+
+    if (result.mode === "image") {
+      return [
+        `Промпт:\n${result.prompt}`,
+        `Дата публикации: ${result.article.date ?? "не найдена"}`,
+        `Заголовок: ${result.article.title}`,
+        `Адрес статьи: ${result.article.url}`,
+        `Провайдер промпта: ${
+          result.promptProvider === "openrouter" ? "OpenRouter" : "Резервный локальный режим"
+        }`,
+        "Генерация изображения: Hugging Face",
       ].join("\n\n");
     }
 
@@ -403,6 +460,12 @@ export default function Home() {
 
           {result?.mode === "ai" ? (
             <AiResultBody text={resultContent.body} />
+          ) : result?.mode === "image" ? (
+            <ImageResultBody
+              title={result.title}
+              prompt={result.prompt}
+              dataUrl={result.image.dataUrl}
+            />
           ) : (
             <div className="app-resultBody">{resultContent.body}</div>
           )}

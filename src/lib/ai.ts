@@ -4,6 +4,8 @@ const DEFAULT_MODEL =
   process.env.OPENROUTER_MODEL ||
   process.env.OPENAI_MODEL ||
   "openai/gpt-4o-mini";
+const ILLUSTRATION_PROMPT_MODEL =
+  process.env.OPENROUTER_ILLUSTRATION_PROMPT_MODEL || DEFAULT_MODEL;
 const TRANSLATE_MODEL =
   process.env.OPENROUTER_TRANSLATE_MODEL || "deepseek/deepseek-v4-flash";
 const OPENROUTER_BASE_URL =
@@ -14,6 +16,11 @@ const OPENROUTER_SITE_URL =
   process.env.OPENROUTER_SITE_URL || "https://referent-zeta.vercel.app";
 const OPENROUTER_APP_NAME =
   process.env.OPENROUTER_APP_NAME || "Referent AI";
+const HUGGINGFACE_BASE_URL =
+  process.env.HUGGINGFACE_BASE_URL || "https://api-inference.huggingface.co";
+const HUGGINGFACE_IMAGE_MODEL =
+  process.env.HUGGINGFACE_IMAGE_MODEL ||
+  "stabilityai/stable-diffusion-xl-base-1.0";
 
 function buildPrompt(action: ActionKey, article: ArticleContent) {
   const commonContext = `You analyze English-language articles and write polished answers in Russian.
@@ -63,6 +70,13 @@ Task:
 - Не пересказывай и не сокращай материал без необходимости.
 - Верни только перевод статьи без пояснений от себя.
 `;
+    case "illustration":
+      return `${commonContext}
+
+Task:
+- На основе статьи предложи 1 идею иллюстрации.
+- Оформи ответ по структуре: 1 строка заголовка и затем 3-5 коротких пунктов.
+`;
   }
 }
 
@@ -102,6 +116,14 @@ function localFallback(action: ActionKey, article: ArticleContent) {
         `- ${dateLine}`,
         `- Основной контент статьи извлечён.`,
         `- После подключения OpenRouter здесь появится полный перевод на русский язык.`,
+      ].join("\n");
+    case "illustration":
+      return [
+        `Идея иллюстрации для статьи "${article.title}" пока сформирована в резервном режиме.`,
+        "",
+        `- ${dateLine}`,
+        `- Можно сгенерировать обложку/иллюстрацию по мотивам материала.`,
+        `- Источник: ${article.url}`,
       ].join("\n");
   }
 }
@@ -173,5 +195,148 @@ export async function generateAnalysis(action: ActionKey, article: ArticleConten
   return {
     provider: "local-fallback" as const,
     result: localFallback(action, article),
+  };
+}
+
+function buildIllustrationPromptInput(article: ArticleContent) {
+  return `Create a single text-to-image prompt in English for a generative model.
+Return ONLY the prompt text. No quotes, no markdown, no headings.
+The prompt must be safe-for-work and must NOT include any brand names, logos, or real people's names.
+Prefer a clean editorial illustration style, high contrast, and a clear focal point.
+Keep it 1 sentence plus optional short style tags separated by commas.
+
+Article title: ${article.title}
+Article date: ${article.date ?? "unknown"}
+Source URL: ${article.url}
+Excerpt: ${article.excerpt}
+`;
+}
+
+export async function generateIllustrationPrompt(article: ArticleContent) {
+  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    return {
+      provider: "local-fallback" as const,
+      prompt: `Editorial illustration inspired by: ${article.title}, clean minimal composition, high contrast, soft lighting, vector style`,
+    };
+  }
+
+  try {
+    const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": OPENROUTER_SITE_URL,
+        "X-OpenRouter-Title": OPENROUTER_APP_NAME,
+      },
+      body: JSON.stringify({
+        model: ILLUSTRATION_PROMPT_MODEL,
+        temperature: 0.5,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a prompt engineer for text-to-image generation. Output only the final English prompt text.",
+          },
+          {
+            role: "user",
+            content: buildIllustrationPromptInput(article),
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(30000),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenRouter error: ${response.status} ${errorText}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{
+        message?: {
+          content?: string;
+        };
+      }>;
+    };
+
+    const prompt = data.choices?.[0]?.message?.content?.trim() || "";
+
+    if (!prompt) {
+      throw new Error("OpenRouter вернул пустой промпт для иллюстрации.");
+    }
+
+    return { provider: "openrouter" as const, prompt };
+  } catch {
+    return {
+      provider: "local-fallback" as const,
+      prompt: `Editorial illustration inspired by: ${article.title}, clean minimal composition, high contrast, soft lighting, vector style`,
+    };
+  }
+}
+
+export async function generateIllustrationImage(prompt: string) {
+  const token =
+    process.env.HF_TOKEN ||
+    process.env.HUGGINGFACE_API_TOKEN ||
+    process.env.HUGGINGFACEHUB_API_TOKEN;
+
+  if (!token) {
+    throw new Error("Не найден токен Hugging Face (HF_TOKEN).");
+  }
+
+  const response = await fetch(
+    `${HUGGINGFACE_BASE_URL}/models/${HUGGINGFACE_IMAGE_MODEL}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "image/png",
+      },
+      body: JSON.stringify({
+        inputs: prompt,
+      }),
+      signal: AbortSignal.timeout(60000),
+      cache: "no-store",
+    },
+  );
+
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!response.ok) {
+    if (contentType.includes("application/json")) {
+      const data = (await response.json()) as { error?: string };
+      throw new Error(data.error || "Hugging Face вернул ошибку при генерации изображения.");
+    }
+
+    const text = await response.text();
+    const head = text.slice(0, 200).replace(/\s+/g, " ").trim();
+    throw new Error(
+      `Hugging Face вернул ошибку (HTTP ${response.status}). Ответ начинается с: ${head}`,
+    );
+  }
+
+  if (!contentType.startsWith("image/")) {
+    if (contentType.includes("application/json")) {
+      const data = (await response.json()) as { error?: string };
+      throw new Error(data.error || "Hugging Face вернул не изображение.");
+    }
+
+    const text = await response.text();
+    const head = text.slice(0, 200).replace(/\s+/g, " ").trim();
+    throw new Error(`Hugging Face вернул не изображение. Ответ начинается с: ${head}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const base64 = buffer.toString("base64");
+  const dataUrl = `data:${contentType};base64,${base64}`;
+
+  return {
+    dataUrl,
+    contentType,
   };
 }

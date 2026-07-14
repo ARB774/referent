@@ -299,6 +299,43 @@ input {
   text-decoration: underline;
 }
 
+.app-imageResult {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app-illustration {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(68, 79, 106, 0.12);
+  background: rgba(243, 243, 243, 0.85);
+}
+
+.app-imagePrompt {
+  border: 1px solid rgba(68, 79, 106, 0.12);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(243, 243, 243, 0.85);
+  color: var(--dark-color);
+}
+
+.app-imagePromptLabel {
+  font-size: var(--small-size);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dark-light-color);
+}
+
+.app-imagePromptText {
+  margin-top: 8px;
+  font-size: var(--middle-size);
+  line-height: 1.65;
+  word-break: break-word;
+}
+
 .app-metaList {
   margin-top: 18px;
   display: flex;

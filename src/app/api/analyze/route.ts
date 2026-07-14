@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 
-import { generateAnalysis } from "@/lib/ai";
+import {
+  generateAnalysis,
+  generateIllustrationImage,
+  generateIllustrationPrompt,
+} from "@/lib/ai";
 import { fetchArticle } from "@/lib/article";
 import type {
   ActionKey,
   AnalysisResponse,
   AnalyzeResponse,
+  IllustrationResponse,
   RequestActionKey,
 } from "@/lib/types";
 
@@ -17,6 +22,7 @@ const TITLES: Record<ActionKey, string> = {
   theses: "Тезисы",
   telegram: "Пост",
   translate: "Перевести",
+  illustration: "Иллюстрация",
 };
 
 function isRequestActionKey(value: string): value is RequestActionKey {
@@ -25,6 +31,7 @@ function isRequestActionKey(value: string): value is RequestActionKey {
     value === "theses" ||
     value === "telegram" ||
     value === "translate" ||
+    value === "illustration" ||
     value === "parse"
   );
 }
@@ -70,6 +77,28 @@ export async function POST(request: Request) {
           date: article.date,
           title: article.title,
           content: article.content,
+        },
+      };
+
+      return NextResponse.json(response, { status: 200 });
+    }
+
+    if (action === "illustration") {
+      const promptResult = await generateIllustrationPrompt(article);
+      const image = await generateIllustrationImage(promptResult.prompt);
+
+      const response: IllustrationResponse = {
+        mode: "image",
+        title: TITLES[action],
+        provider: "huggingface",
+        promptProvider: promptResult.provider,
+        prompt: promptResult.prompt,
+        image,
+        article: {
+          date: article.date,
+          title: article.title,
+          excerpt: article.excerpt,
+          url: article.url,
         },
       };
 

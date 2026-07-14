@@ -1,4 +1,9 @@
-export type ActionKey = "summary" | "theses" | "telegram" | "translate";
+export type ActionKey =
+  | "summary"
+  | "theses"
+  | "telegram"
+  | "translate"
+  | "illustration";
 export type ParseActionKey = "parse";
 export type RequestActionKey = ActionKey | ParseActionKey;
 
@@ -40,4 +45,22 @@ export type ParseResponse = {
   };
 };
 
-export type AnalyzeResponse = AnalysisResponse | ParseResponse;
+export type IllustrationResponse = {
+  mode: "image";
+  title: string;
+  provider: "huggingface";
+  promptProvider: "openrouter" | "local-fallback";
+  prompt: string;
+  image: {
+    dataUrl: string;
+    contentType: string;
+  };
+  article: {
+    date: string | null;
+    title: string;
+    excerpt: string;
+    url: string;
+  };
+};
+
+export type AnalyzeResponse = AnalysisResponse | ParseResponse | IllustrationResponse;
