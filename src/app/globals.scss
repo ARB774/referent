@@ -277,6 +277,11 @@ input {
   overflow-x: auto;
 }
 
+.app-resultBody a {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
 .app-metaList {
   margin-top: 18px;
   display: flex;

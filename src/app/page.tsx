@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import type {
   AnalyzeResponse,
@@ -41,6 +41,68 @@ const parseAction = {
   description:
     "Найти дату, заголовок статьи и основной контент страницы и вернуть JSON.",
 };
+
+function renderLinkifiedText(text: string) {
+  const urlRegex = /(https?:\/\/[^\s)]+)(?=[)\s]|$)/g;
+  const matches = [...text.matchAll(urlRegex)];
+
+  if (matches.length === 0) {
+    return text;
+  }
+
+  const nodes: Array<React.ReactNode> = [];
+  let cursor = 0;
+
+  for (const [matchText] of matches) {
+    const matchIndex = text.indexOf(matchText, cursor);
+
+    if (matchIndex > cursor) {
+      nodes.push(text.slice(cursor, matchIndex));
+    }
+
+    nodes.push(
+      <a
+        key={`url-${matchIndex}`}
+        href={matchText}
+        target="_blank"
+        rel="noreferrer noopener"
+      >
+        {matchText}
+      </a>,
+    );
+
+    cursor = matchIndex + matchText.length;
+  }
+
+  if (cursor < text.length) {
+    nodes.push(text.slice(cursor));
+  }
+
+  return nodes;
+}
+
+function AiResultBody({ text }: { text: string }) {
+  const lines = text.split("\n");
+
+  return (
+    <div className="app-resultBody">
+      {lines.map((line, index) => {
+        const boldMatch = line.match(/^\*\*(.+)\*\*$/);
+
+        return (
+          <Fragment key={`${index}-${line}`}>
+            {boldMatch ? (
+              <strong>{renderLinkifiedText(boldMatch[1])}</strong>
+            ) : (
+              renderLinkifiedText(line)
+            )}
+            {index < lines.length - 1 ? <br /> : null}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -327,7 +389,11 @@ export default function Home() {
             ) : null}
           </div>
 
-          <div className="app-resultBody">{resultContent.body}</div>
+          {result?.mode === "ai" ? (
+            <AiResultBody text={resultContent.body} />
+          ) : (
+            <div className="app-resultBody">{resultContent.body}</div>
+          )}
 
           <ul className="app-metaList">
             {resultContent.points.map((point) => (
