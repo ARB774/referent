@@ -112,6 +112,18 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const processText = useMemo(() => {
+    if (!isLoading) {
+      return "";
+    }
+
+    if (selectedAction === "parse") {
+      return "Загружаю и парсю статью…";
+    }
+
+    return "Загружаю статью…";
+  }, [isLoading, selectedAction]);
+
   const resultContent = useMemo(() => {
     if (!result) {
       return {
@@ -298,9 +310,10 @@ export default function Home() {
               type="url"
               value={url}
               onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://example.com/article"
+              placeholder="Введите URL статьи, например: `https://example.com/article`"
               className="app-input"
             />
+            <p className="app-inputHint">Укажите ссылку на англоязычную статью</p>
             <div className="app-actionGroup">
               <p className="app-actionLabel">Парсинг статьи</p>
               <button
@@ -355,17 +368,16 @@ export default function Home() {
         </section>
 
         <section className="app-card">
+          {processText ? <div className="app-process">{processText}</div> : null}
           <div className="app-resultHeader">
             <div>
               <h2 className="app-sectionTitle">Результаты</h2>
               <p className="app-status">
-                {isLoading
-                  ? "Идёт обработка статьи..."
-                  : result
-                    ? result.mode === "parse"
-                      ? "JSON с результатом парсинга сформирован."
-                      : "Результат AI-обработки сформирован."
-                    : "Ожидается запуск анализа."}
+                {result
+                  ? result.mode === "parse"
+                    ? "JSON с результатом парсинга сформирован."
+                    : "Результат AI-обработки сформирован."
+                  : "Ожидается запуск анализа."}
               </p>
             </div>
 

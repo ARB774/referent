@@ -164,6 +164,13 @@ input {
   box-shadow: 0 0 0 4px rgba(255, 99, 50, 0.14);
 }
 
+.app-inputHint {
+  margin-top: -6px;
+  font-size: var(--small-size);
+  line-height: 1.5;
+  color: var(--dark-light-color);
+}
+
 .app-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -228,6 +235,16 @@ input {
   padding: 14px 16px;
   background: rgba(255, 99, 50, 0.1);
   color: var(--primary-hover-color);
+}
+
+.app-process {
+  border: 1px solid rgba(68, 79, 106, 0.12);
+  border-radius: 18px;
+  padding: 12px 16px;
+  background: rgba(255, 99, 50, 0.08);
+  color: var(--dark-color);
+  font-size: var(--middle-size);
+  line-height: 1.65;
 }
 
 .app-resultHeader {
